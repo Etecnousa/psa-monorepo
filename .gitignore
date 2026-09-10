@@ -1,0 +1,54 @@
+# Dependencias
+node_modules/
+.pnp
+.pnp.js
+
+# Build
+dist/
+.next/
+out/
+build/
+*.tsbuildinfo
+
+# Testing
+coverage/
+*.lcov
+.nyc_output/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Variables de entorno
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# OS
+Thumbs.db
+
+# Turborepo
+.turbo/
+
+# Docker volumes (NO commitear datos)
+postgres_data/
+redis_data/
+minio_data/
+backups/
+
+# Secrets detectados
+.gitleaks-report.json
+
+# Backups locales
+*.sql
+*.sql.gz
+*.dump

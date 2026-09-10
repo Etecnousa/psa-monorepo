@@ -1,0 +1,70 @@
+
+services:
+  # Base de Datos Relacional
+  psa-db:
+    image: postgres:16-alpine
+    container_name: psa_dev_db
+    restart: always
+    environment:
+      - POSTGRES_USER=psa_dev
+      - POSTGRES_PASSWORD=psa_dev_password
+      - POSTGRES_DB=psa_dev_db
+    ports:
+      - "5434:5432"
+    volumes:
+      - psa_pg_data:/var/lib/postgresql/data
+    networks:
+      - psa_dev_net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U psa_dev -d psa_dev_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Caché y Cola de Mensajes
+  psa-redis:
+    image: redis:7-alpine
+    container_name: psa_dev_redis
+    restart: always
+    ports:
+      - "6380:6379"
+    volumes:
+      - psa_redis_data:/data
+    networks:
+      - psa_dev_net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Almacenamiento de Objetos (Documentos)
+  psa-minio:
+    image: minio/minio:latest
+    container_name: psa_dev_minio
+    restart: always
+    ports:
+      - "9002:9000"
+      - "9003:9001"
+    environment:
+      - MINIO_ROOT_USER=minio_dev
+      - MINIO_ROOT_PASSWORD=minio_dev_password
+    command: server /data --console-address ":9001"
+    volumes:
+      - psa_minio_data:/data
+    networks:
+      - psa_dev_net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+networks:
+  psa_dev_net:
+    driver: bridge
+
+volumes:
+  psa_pg_data:
+  psa_redis_data:
+  psa_minio_data:

@@ -1,0 +1,323 @@
+// ============================================================================
+// PSA - Programa de Seguimiento Académico
+// Schema de Base de Datos - Versión 1.0
+// ============================================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================================
+// ENUMS
+// ============================================================================
+
+enum Role {
+  SUPERADMIN
+  ADMINISTRACION
+  PROFESOR
+  ALUMNO
+}
+
+enum CourseStatus {
+  BORRADOR
+  ACTIVO
+  FINALIZADO
+  ARCHIVADO
+}
+
+enum TopicStatus {
+  NO_INICIADO
+  EN_PROGRESO
+  REVISION
+  COMPLETADO
+}
+
+enum DocumentStatus {
+  ACTIVO
+  OBSOLETO
+  EN_REVISION
+}
+
+enum AlertType {
+  RETRASO_TEMA
+  FALTA_DOC
+  PROXIMIDAD_EXAMEN
+  DESVIACION
+}
+
+enum AlertSeverity {
+  INFO
+  WARNING
+  CRITICAL
+}
+
+// ============================================================================
+// MODELO: USER
+// ============================================================================
+
+model User {
+  id            String   @id @default(uuid())
+  email         String   @unique
+  passwordHash  String
+  firstName     String
+  lastName      String
+  role          Role     @default(ALUMNO)
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relaciones inversas (arrays)
+  refreshTokens     RefreshToken[]
+  auditLogs         AuditLog[]
+  alerts            Alert[]           // ← AÑADIDO: Relación inversa con Alert
+  enrollments       Enrollment[]
+  coursesTeaching   Course[]          @relation("CourseProfessors")
+  documentsUploaded Document[]
+
+  @@index([email])
+  @@index([role])
+  @@map("users")
+}
+
+// ============================================================================
+// MODELO: REFRESH_TOKEN
+// ============================================================================
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  tokenHash String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([tokenHash])
+  @@map("refresh_tokens")
+}
+
+// ============================================================================
+// MODELO: COURSE
+// ============================================================================
+
+model Course {
+  id          String       @id @default(uuid())
+  name        String
+  description String?
+  startDate   DateTime
+  examDate    DateTime
+  status      CourseStatus @default(BORRADOR)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  blocks      Block[]
+  documents   Document[]
+  enrollments Enrollment[]
+  professors  User[]       @relation("CourseProfessors")
+
+  @@index([status])
+  @@index([startDate, examDate])
+  @@map("courses")
+}
+
+// ============================================================================
+// MODELO: ENROLLMENT
+// ============================================================================
+
+model Enrollment {
+  id         String   @id @default(uuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  courseId   String
+  course     Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  enrolledAt DateTime @default(now())
+
+  @@unique([userId, courseId])
+  @@index([userId])
+  @@index([courseId])
+  @@map("enrollments")
+}
+
+// ============================================================================
+// MODELO: BLOCK
+// ============================================================================
+
+model Block {
+  id           String   @id @default(uuid())
+  courseId     String
+  course       Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  name         String
+  description  String?
+  order        Int
+  plannedStart DateTime
+  plannedEnd   DateTime
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  topics Topic[]
+
+  @@unique([courseId, order])
+  @@index([courseId, order])
+  @@index([plannedStart, plannedEnd])
+  @@map("blocks")
+}
+
+// ============================================================================
+// MODELO: TOPIC
+// ============================================================================
+
+model Topic {
+  id           String      @id @default(uuid())
+  blockId      String
+  block        Block       @relation(fields: [blockId], references: [id], onDelete: Cascade)
+  title        String
+  description  String?
+  objectives   String?
+  plannedStart DateTime
+  plannedEnd   DateTime
+  actualEnd    DateTime?
+  status       TopicStatus @default(NO_INICIADO)
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  documents     Document[]
+  lociPalace    LociPalace?
+  prerequisites TopicDependency[] @relation("PrerequisiteTopics")
+  dependents    TopicDependency[] @relation("DependentTopics")
+
+  @@index([blockId])
+  @@index([status])
+  @@index([plannedStart, plannedEnd])
+  @@index([actualEnd])
+  @@map("topics")
+}
+
+// ============================================================================
+// MODELO: TOPIC_DEPENDENCY
+// ============================================================================
+
+model TopicDependency {
+  id             String @id @default(uuid())
+  prerequisiteId String
+  dependentId    String
+
+  prerequisite Topic @relation("PrerequisiteTopics", fields: [prerequisiteId], references: [id], onDelete: Cascade)
+  dependent    Topic @relation("DependentTopics", fields: [dependentId], references: [id], onDelete: Cascade)
+
+  @@unique([prerequisiteId, dependentId])
+  @@index([prerequisiteId])
+  @@index([dependentId])
+  @@map("topic_dependencies")
+}
+
+// ============================================================================
+// MODELO: DOCUMENT
+// ============================================================================
+
+model Document {
+  id           String         @id @default(uuid())
+  courseId     String?
+  course       Course?        @relation(fields: [courseId], references: [id], onDelete: SetNull)
+  topicId      String?
+  topic        Topic?         @relation(fields: [topicId], references: [id], onDelete: SetNull)
+  uploadedById String
+  uploadedBy   User           @relation(fields: [uploadedById], references: [id])
+
+  filename  String
+  mimeType  String
+  sizeBytes Int
+  checksum  String
+
+  version Int            @default(1)
+  status  DocumentStatus @default(ACTIVO)
+
+  minioPath String
+
+  title       String?
+  description String?
+  tags        String[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([courseId])
+  @@index([topicId])
+  @@index([uploadedById])
+  @@index([filename, version])
+  @@index([status])
+  @@index([tags])
+  @@index([createdAt])
+  @@map("documents")
+}
+
+// ============================================================================
+// MODELO: LOCI_PALACE
+// ============================================================================
+
+model LociPalace {
+  id        String   @id @default(uuid())
+  topicId   String   @unique
+  topic     Topic    @relation(fields: [topicId], references: [id], onDelete: Cascade)
+  name      String
+  layout    String   @default("2D_GRID")
+  rooms     Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([topicId])
+  @@map("loci_palaces")
+}
+
+// ============================================================================
+// MODELO: ALERT
+// ============================================================================
+
+model Alert {
+  id        String        @id @default(uuid())
+  userId    String?
+  user      User?         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  courseId  String?
+  type      AlertType
+  severity  AlertSeverity
+  title     String
+  message   String
+  isRead    Boolean       @default(false)
+  metadata  Json?
+  createdAt DateTime      @default(now())
+
+  @@index([userId, isRead])
+  @@index([courseId])
+  @@index([type])
+  @@index([severity])
+  @@index([createdAt])
+  @@map("alerts")
+}
+
+// ============================================================================
+// MODELO: AUDIT_LOG (APPEND ONLY)
+// ============================================================================
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  action    String
+  entity    String?
+  entityId  String?
+  ipAddress String?
+  userAgent String?
+  metadata  Json?
+  timestamp DateTime @default(now())
+
+  @@index([userId])
+  @@index([action])
+  @@index([entity, entityId])
+  @@index([timestamp])
+  @@index([userId, timestamp])
+  @@map("audit_logs")
+}
