@@ -1,6 +1,5 @@
-
 services:
-  # Base de Datos Relacional
+  # Base de Datos PostgreSQL
   psa-db:
     image: postgres:16-alpine
     container_name: psa_dev_db
@@ -21,7 +20,7 @@ services:
       timeout: 5s
       retries: 5
 
-  # Caché y Cola de Mensajes
+  # Redis
   psa-redis:
     image: redis:7-alpine
     container_name: psa_dev_redis
@@ -38,7 +37,7 @@ services:
       timeout: 5s
       retries: 5
 
-  # Almacenamiento de Objetos (Documentos)
+  # MinIO
   psa-minio:
     image: minio/minio:latest
     container_name: psa_dev_minio
@@ -59,6 +58,47 @@ services:
       interval: 10s
       timeout: 5s
       retries: 3
+
+  # Backend API (NestJS)
+  psa-api:
+    image: psa-api:latest
+    container_name: psa_dev_api
+    restart: always
+    ports:
+      - "3010:3010"
+    environment:
+      - DATABASE_URL=postgresql://psa_dev:psa_dev_password@psa-db:5432/psa_dev_db
+      - REDIS_URL=redis://psa-redis:6379
+      - MINIO_ENDPOINT=psa-minio
+      - MINIO_PORT=9000
+      - MINIO_ACCESS_KEY=minio_dev
+      - MINIO_SECRET_KEY=minio_dev_password
+      - JWT_SECRET=psa-super-secret-jwt-key-production-2026
+      - NODE_ENV=production
+    depends_on:
+      psa-db:
+        condition: service_healthy
+      psa-redis:
+        condition: service_healthy
+      psa-minio:
+        condition: service_healthy
+    networks:
+      - psa_dev_net
+
+  # Frontend (Next.js)
+  psa-web:
+    image: psa-web:latest
+    container_name: psa_dev_web
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=https://psa.local/api
+      - NODE_ENV=production
+    depends_on:
+      - psa-api
+    networks:
+      - psa_dev_net
 
 networks:
   psa_dev_net:
