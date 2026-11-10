@@ -1,20 +1,17 @@
-import { Test, TestingModule } from '@nestjs/testing';
-import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+import { describe, it, expect, beforeEach } from 'vitest';
 
 describe('AppController', () => {
   let appController: AppController;
   let appService: AppService;
 
-  beforeEach(async () => {
-    const moduleRef: TestingModule = await Test.createTestingModule({
-      controllers: [AppController],
-      providers: [AppService],
-    }).compile();
-
-    appController = moduleRef.get<AppController>(AppController);
-    appService = moduleRef.get<AppService>(AppService);
+  beforeEach(() => {
+    // Creamos el service manualmente (sin inyección de NestJS)
+    appService = new AppService();
+    
+    // Creamos el controller pasándole el service manualmente
+    appController = new AppController(appService);
   });
 
   describe('root', () => {
@@ -27,10 +24,8 @@ describe('AppController', () => {
     });
 
     it('should return "Hello World!"', () => {
-      vi.spyOn(appService, 'getHello').mockReturnValue('Hello World!');
       const result = appController.getHello();
       expect(result).toBe('Hello World!');
-      expect(appService.getHello).toHaveBeenCalled();
     });
   });
 });

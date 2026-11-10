@@ -4,6 +4,7 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { PrismaModule } from './common/prisma';
 import { AuthModule } from './modules/auth/auth.module';
+import { CoursesModule } from './modules/courses/courses.module';
 
 @Module({
   imports: [
@@ -13,7 +14,8 @@ import { AuthModule } from './modules/auth/auth.module';
       cache: true,
     }),
     PrismaModule,
-    AuthModule, // <-- Añadido
+    AuthModule,
+    CoursesModule, // <-- Añadido: módulo de gestión de cursos
   ],
   controllers: [AppController],
   providers: [AppService],

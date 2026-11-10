@@ -16,8 +16,14 @@ async function bootstrap() {
     credentials: true,
   });
 
-  // 2. Prefijo global para todas las rutas
-  app.setGlobalPrefix('api');
+  // 2. Prefijo global para todas las rutas (EXCLUYENDO Swagger)
+  app.setGlobalPrefix('api', {
+    exclude: [
+      { path: '', method: 0 },           // Health check en raíz
+      { path: 'docs', method: 0 },       // Swagger docs
+      { path: 'docs-json', method: 0 },  // Swagger JSON spec
+    ],
+  });
 
   // 3. ValidationPipe global
   app.useGlobalPipes(
@@ -45,20 +51,28 @@ async function bootstrap() {
         description: 'Introduce el token JWT en el formato: Bearer <token>',
         in: 'header',
       },
-      'access-token', // Nombre de la seguridad
+      'access-token',
     )
+    .addTag('Auth', 'Endpoints de autenticación y gestión de sesión')
     .build();
 
   const document = SwaggerModule.createDocument(app, config);
-  // Monta Swagger en la ruta /api/docs
-  SwaggerModule.setup('api/docs', app, document);
+  
+  // Montamos Swagger en /docs (SIN el prefijo api porque lo excluimos arriba)
+  SwaggerModule.setup('docs', app, document, {
+    swaggerOptions: {
+      persistAuthorization: true,
+      tagsSorter: 'alpha',
+      operationsSorter: 'alpha',
+    },
+  });
 
   // 5. Iniciar servidor
   const port = process.env.PORT || 3010;
   await app.listen(port);
   
   logger.log(`🚀 PSA API corriendo en: http://localhost:${port}`);
-  logger.log(`📚 Documentación Swagger: http://localhost:${port}/api/docs`);
+  logger.log(`📚 Documentación Swagger: http://localhost:${port}/docs`);
   logger.log(`🌍 Entorno: ${process.env.NODE_ENV || 'development'}`);
 }
 
